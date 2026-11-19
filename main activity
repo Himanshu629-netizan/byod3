@@ -1,0 +1,125 @@
+package com.example.byod3
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.AbstractSavedStateViewModelFactory
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+class MainActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Initialize database
+        val database = ContactDatabase.getDatabase(this)
+        val dao = database.contactDao()
+
+        // Create ViewModel with SavedStateHandle
+        val factory = object : AbstractSavedStateViewModelFactory(this, null) {
+            override fun <T : ViewModel> create(
+                key: String,
+                modelClass: Class<T>,
+                handle: SavedStateHandle
+            ): T {
+                @Suppress("UNCHECKED_CAST")
+                return ContactViewModel(dao, handle) as T
+            }
+        }
+
+        val viewModel = ViewModelProvider(
+            this, factory
+        )[ContactViewModel::class.java]
+
+        setContent {
+            MaterialTheme {
+                ContactSearchScreen(viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+fun ContactSearchScreen(viewModel: ContactViewModel) {
+
+    // Observe saved search query
+    val query by viewModel.searchQuery
+        .collectAsStateWithLifecycle()
+
+    // Observe filtered contacts
+    val contacts by viewModel.contacts
+        .collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+
+        Text(
+            text = "Contact Search",
+            style = MaterialTheme.typography.headlineMedium
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { newQuery ->
+                viewModel.updateSearchQuery(newQuery)
+            },
+            label = { Text("Search Contact") },
+            placeholder = { Text("Enter contact name or phone") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Search Results",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (contacts.isEmpty()) {
+            Text("No contacts found")
+        } else {
+            LazyColumn {
+                items(
+                    items = contacts,
+                    key = { it.id }
+                ) { contact ->
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = contact.name,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+
+                            Text(text = contact.phone)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
